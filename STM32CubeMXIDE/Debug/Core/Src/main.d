@@ -27,22 +27,22 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h \
- ../Core/Inc/FreeRTOSConfig.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/portmacro.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/FreeRTOS.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/FreeRTOSConfig.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/projdefs.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/portable.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/deprecated_definitions.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/portmacro.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/mpu_wrappers.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/task.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/list.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/timers.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/task.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/queue.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/semphr.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/queue.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/event_groups.h \
+ C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/timers.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -72,19 +72,19 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
-../Core/Inc/FreeRTOSConfig.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h:
-../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/portmacro.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/list.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/FreeRTOS.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/FreeRTOSConfig.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/projdefs.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/portable.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/deprecated_definitions.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/portmacro.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/mpu_wrappers.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/task.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/list.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/timers.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/task.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/queue.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/semphr.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/queue.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/event_groups.h:
+C:/ST/Projects/002_STM32CubeMXIDE/STM32CubeMXIDE/Workspace_FreeRTOS/FreeRTOS-Kernel/include/timers.h:

@@ -59,8 +59,6 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-void StartDefaultTask(void *argument);
-
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -82,7 +80,7 @@ void VLPT_TASK(void *pvParameter);
 SemaphoreHandle_t CountingSem;
 
 //Resource Related
-int resource[4] = {111,222,333,444};
+int resource[3] = {111,222,333};
 int indx = 0;
 
 //uart related
@@ -124,7 +122,7 @@ int main(void)
 
   HAL_UART_Receive_IT(&huart2,&rx_data,1);
 
-  CountingSem = xSemaphoreCreateCounting(8,0);
+  CountingSem = xSemaphoreCreateCounting(3,0);
   if(CountingSem == NULL)
   {
 	  printf("Unable to create Semaphore\r\n\r\n");
@@ -192,8 +190,8 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
@@ -286,11 +284,6 @@ void HPT_TASK(void *parameters)
 	int semcount = 0;
 
 	//Give three semaphores at beginning of task
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
 	xSemaphoreGive(CountingSem);
 	xSemaphoreGive(CountingSem);
 	xSemaphoreGive(CountingSem);
