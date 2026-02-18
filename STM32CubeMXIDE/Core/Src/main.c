@@ -65,26 +65,14 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-TaskHandle_t HPThandler;
-void HPT_TASK(void *pvParameter);
+TaskHandle_t TASK1handler;
+void TASK1(void *pvParameter);
 
-TaskHandle_t MPThandler;
-void MPT_TASK(void *pvParameter);
-
-TaskHandle_t LPThandler;
-void LPT_TASK(void *pvParameter);
-
-TaskHandle_t VLPThandler;
-void VLPT_TASK(void *pvParameter);
-
-SemaphoreHandle_t CountingSem;
-
-//Resource Related
-int resource[3] = {111,222,333};
-int indx = 0;
+TaskHandle_t TASK2handler;
+void TASK2(void *pvParameter);
 
 //uart related
-uint8_t rx_data = 0;
+uint16_t rx_data = 1000;
 
 /* USER CODE END 0 */
 
@@ -120,22 +108,8 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_UART_Receive_IT(&huart2,&rx_data,1);
-
-  CountingSem = xSemaphoreCreateCounting(3,0);
-  if(CountingSem == NULL)
-  {
-	  printf("Unable to create Semaphore\r\n\r\n");
-  }
-  else
-  {
-	  printf("Counting Semaphore created successfully\r\n\r\n");
-  }
-
-  xTaskCreate(HPT_TASK,"HPT",300,NULL,3,&HPThandler);
-  xTaskCreate(MPT_TASK,"MPT",300,NULL,2,&MPThandler);
-  xTaskCreate(LPT_TASK,"LPT",300,NULL,1,&LPThandler);
-  xTaskCreate(VLPT_TASK,"VLPT",300,NULL,0,&VLPThandler);
+  xTaskCreate(TASK1,"TASK1",300,NULL,3,&TASK1handler);
+  xTaskCreate(TASK2,"TASK2",300,NULL,3,&TASK2handler);
 
   vTaskStartScheduler();
 
@@ -273,131 +247,67 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-int __io_putchar(int data)
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#define GETCHAR_PROTOTYPE int __io_getchar(void)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#define GETCHAR_PROTOTYPE int fgetc(FILE *f)
+#endif
+
+PUTCHAR_PROTOTYPE
 {
-    HAL_UART_Transmit(&huart2,(uint8_t*)&data,1,0xFFFF);
-    return data;
+	HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1,HAL_MAX_DELAY);
+	return ch;
 }
 
-void HPT_TASK(void *parameters)
+
+GETCHAR_PROTOTYPE
 {
-	int semcount = 0;
+	uint8_t ch = 0;
 
-	//Give three semaphores at beginning of task
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
-	xSemaphoreGive(CountingSem);
+	/* Clear the Overrun flag just before receiving the first character */
+	__HAL_UART_CLEAR_OREFLAG(&huart2);
 
-	while(1)
-	{
-		semcount = uxSemaphoreGetCount(CountingSem);
-		printf("Entered HPT Task\r\n About to ACQUIRE the Semaphore\n\rTokens available are: %d \n\r\n\r", semcount);
+	/* Wait for reception of a character on the USART RX line and echo this
+	* character on console */
+	HAL_UART_Receive(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    /* Handle carriage return specially */
+    if (ch == '\r') {
+        /* Send CR+LF for proper newline */
+        uint8_t newline[] = {'\r', '\n'};
+        HAL_UART_Transmit(&huart2, newline, 2, HAL_MAX_DELAY);
+        return '\n';  /* Return newline to satisfy scanf */
+    }
+    else
+    {
+        /* Echo back other characters normally */
+        HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+        return ch;
+    }
 
-		xSemaphoreTake(CountingSem,portMAX_DELAY);
-
-		printf("Leaving HPT Task \r\n Data ACCESSED is:: %d\r\n Not Releasing the semaphore \r\n\r\n\r\n",resource[indx]);
-
-		indx++;
-
-		if(indx > ((sizeof(resource)/sizeof(int))-1))
-		{
-			indx = 0;
-		}
-
-		vTaskDelay(3000);
-		//vTaskDelete(NULL);
-	}
+	return ch;
 }
 
-void MPT_TASK(void *parameters)
+void TASK1(void *parameters)
 {
-	int semcount = 0;
-
+	//char str[] = "Hello world\r\n";
 	while(1)
 	{
-		semcount = uxSemaphoreGetCount(CountingSem);
-		printf("Entered MPT Task\r\n About to ACQUIRE the Semaphore\n\rTokens available are: %d \n\r\n\r", semcount);
-
-		xSemaphoreTake(CountingSem,portMAX_DELAY);
-
-		printf("Leaving MPT Task \r\n Data ACCESSED is:: %d\r\n Not Releasing the semaphore \r\n\r\n\r\n",resource[indx]);
-
-		indx++;
-
-		if(indx > ((sizeof(resource)/sizeof(int))-1))
-		{
-			indx = 0;
-		}
-
-		vTaskDelay(2000);
-		//vTaskDelete(NULL);
-	}
-}
-
-void LPT_TASK(void *parameters)
-{
-	int semcount = 0;
-
-	while(1)
-	{
-		semcount = uxSemaphoreGetCount(CountingSem);
-		printf("Entered LPT Task\r\n About to ACQUIRE the Semaphore\n\rTokens available are: %d \n\r\n\r", semcount);
-
-		xSemaphoreTake(CountingSem,portMAX_DELAY);
-
-		printf("Leaving LPT Task \r\n Data ACCESSED is:: %d\r\n Not Releasing the semaphore \r\n\r\n\r\n",resource[indx]);
-
-		indx++;
-
-		if(indx > ((sizeof(resource)/sizeof(int))-1))
-		{
-			indx = 0;
-		}
-
+		setvbuf(stdin, NULL, _IONBF, 0);
+		scanf("%hu", &rx_data);
+		//printf("%s",str);
+		//HAL_UART_Transmit(&huart2, (uint8_t*)str , sizeof(str),0xFFFF);
 		vTaskDelay(1000);
-		//vTaskDelete(NULL);
 	}
 }
 
-void VLPT_TASK(void *parameters)
+void TASK2(void *parameters)
 {
-	int semcount = 0;
-
 	while(1)
 	{
-		semcount = uxSemaphoreGetCount(CountingSem);
-		printf("Entered VLPT Task\r\n About to ACQUIRE the Semaphore\n\rTokens available are: %d \n\r\n\r", semcount);
-
-		xSemaphoreTake(CountingSem,portMAX_DELAY);
-
-		printf("Leaving VLPT Task \r\n Data ACCESSED is:: %d\r\n Not Releasing the semaphore \r\n\r\n\r\n",resource[indx]);
-
-		indx++;
-
-		if(indx > ((sizeof(resource)/sizeof(int))-1))
-		{
-			indx = 0;
-		}
-
-		vTaskDelay(500);
-	}
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	HAL_UART_Receive_IT(&huart2,&rx_data,1);
-
-	if(rx_data == 'r')
-	{
-		//release semaphore
-
-		BaseType_t xHigherPriorityTaskWoken;
-
-		xSemaphoreGiveFromISR( CountingSem, &xHigherPriorityTaskWoken );
-		xSemaphoreGiveFromISR( CountingSem, &xHigherPriorityTaskWoken );
-		xSemaphoreGiveFromISR( CountingSem, &xHigherPriorityTaskWoken );
-
-		portEND_SWITCHING_ISR( xHigherPriorityTaskWoken );
+		HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
+		vTaskDelay(rx_data);
 	}
 }
 /* USER CODE END 4 */
