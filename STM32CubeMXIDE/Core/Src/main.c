@@ -72,7 +72,10 @@ TaskHandle_t TASK2handler;
 void TASK2(void *pvParameter);
 
 //uart related
-uint16_t rx_data = 1000;
+char* rx_data;
+uint8_t Scanf_Finished = 0;
+uint8_t data_isready = 0;
+uint8_t data_size = 0;
 
 /* USER CODE END 0 */
 
@@ -277,11 +280,14 @@ GETCHAR_PROTOTYPE
         /* Send CR+LF for proper newline */
         uint8_t newline[] = {'\r', '\n'};
         HAL_UART_Transmit(&huart2, newline, 2, HAL_MAX_DELAY);
+        Scanf_Finished = 1;
+        data_size +=2;
         return '\n';  /* Return newline to satisfy scanf */
     }
     else
     {
         /* Echo back other characters normally */
+    	data_size +=1;
         HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
         return ch;
     }
@@ -295,10 +301,17 @@ void TASK1(void *parameters)
 	while(1)
 	{
 		setvbuf(stdin, NULL, _IONBF, 0);
-		scanf("%hu", &rx_data);
-		//printf("%s",str);
-		//HAL_UART_Transmit(&huart2, (uint8_t*)str , sizeof(str),0xFFFF);
-		vTaskDelay(1000);
+		scanf("%[^\n]s", rx_data);
+		if (Scanf_Finished == 1)
+		{
+			rx_data = (char*)pvPortMalloc(data_size*sizeof(char));
+			if(rx_data != NULL)
+			{
+				data_size = 0;
+				data_isready = 1;
+				Scanf_Finished = 0;
+			}
+		}
 	}
 }
 
@@ -306,8 +319,12 @@ void TASK2(void *parameters)
 {
 	while(1)
 	{
-		HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-		vTaskDelay(rx_data);
+		if(data_isready == 1 )
+		{
+			printf("The Printed data: %s\r\n",rx_data);
+			data_isready = 0;
+			vPortFree(rx_data);
+		}
 	}
 }
 /* USER CODE END 4 */
