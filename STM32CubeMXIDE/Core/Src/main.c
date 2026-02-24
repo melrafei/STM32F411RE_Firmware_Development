@@ -65,23 +65,11 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-TaskHandle_t TASK1handler;
-void TASK1(void *pvParameter);
+void vTimerCallback( TimerHandle_t xTimer );
 
-TaskHandle_t TASK2handler;
-void TASK2(void *pvParameter);
-
-//uart related
-typedef struct
-{
-	char blinked_str[20];
-	uint8_t blinked_number;
-} queue2_struct_t;
-QueueHandle_t xQueue1, xQueue2;
+TimerHandle_t xTimer_5S;
 
 char serial_input;
-char data_buffer[20];
-QueueHandle_t xQueueSerial;
 
 /* USER CODE END 0 */
 
@@ -117,13 +105,18 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  xTimer_5S = xTimerCreate("Timer", 5000,pdTRUE,(void*) 0 ,vTimerCallback);
 
-  xQueue1 = xQueueCreate(5,sizeof(uint32_t));
-  xQueue2 = xQueueCreate(5,sizeof(queue2_struct_t));
-  xQueueSerial = xQueueCreate(20,sizeof(serial_input));
+  if(xTimer_5S == NULL)
+  {
+	    /* The timer was not created. */
+  }
+  else
+  {
+	  xTimerStart(xTimer_5S,0);
+  }
 
-  xTaskCreate(TASK1,"TASK1",300,NULL,3,&TASK1handler);
-  xTaskCreate(TASK2,"TASK2",300,NULL,3,&TASK2handler);
+  HAL_UART_Receive_IT(&huart2, (uint8_t*)&serial_input, 1);
 
   vTaskStartScheduler();
 
@@ -303,104 +296,28 @@ GETCHAR_PROTOTYPE
 	return ch;
 }
 
-void TASK1(void *parameters)
-{
-	queue2_struct_t queue2_data;
-	char serial_str[20];
-	int serial_str_count = 0;
-	char delay_str[20];
-	int delay_int;
-	int result;
-	static int flag_serial_finished = 0;
-	while(1)
-	{
-		// Print any new messages from Queue2
-		if(xQueue2 != NULL)
-		{
-			if(xQueueReceive(xQueue2,&queue2_data,10) == pdPASS)
-			{
-				printf("Queue2 blinked_str is %s and blinked_number is %d\r\n",queue2_data.blinked_str,queue2_data.blinked_number);
-			}
-		}
-
-		//Read Serial input from user
-		HAL_UART_Receive_IT(&huart2, (uint8_t*)&serial_input, 1);
-
-		if(xQueueSerial != NULL)
-		{
-			if(xQueueReceive(xQueueSerial,&serial_input,10) == pdPASS)
-			{
-				if(serial_input == '\r')
-				{
-					serial_str_count = 0;
-					printf("\r\n");
-					flag_serial_finished = 1;
-				}
-				else
-				{
-					serial_str[serial_str_count] = serial_input;
-					serial_str_count++;
-					printf("%c" , serial_input);
-					fflush(stdout);
-				}
-			}
-		}
-
-		if(flag_serial_finished == 1)
-		{
-			result = sscanf(serial_str,"%s %d",delay_str,&delay_int);
-
-			if ((strcmp(delay_str, "delay") == 0) && (result == 2))
-			{
-				//If delay is valid then send to queue1
-				xQueueSend(xQueue1,&delay_int,10);
-			}
-
-			memset(serial_str, 0, sizeof(serial_str));
-
-			flag_serial_finished = 0;
-		}
-	}
-}
-
-void TASK2(void *parameters)
-{
-	int delay_int = 100;
-	int flag = 0;
-	queue2_struct_t queue2_data;
-	static int count = 0;
-	while(1)
-	{
-		// Get Delay from Queue 1
-		if(xQueue1 != NULL)
-		{
-			if(xQueueReceive(xQueue1,&delay_int,10) == pdPASS)
-			{
-				flag = 1;
-			}
-		}
-
-		if(flag == 1)
-		{
-			HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-			count++;
-		}
-
-		if(count == 100)
-		{
-			strcpy(queue2_data.blinked_str, "blinked");  // Correct way to assign string to array
-			queue2_data.blinked_number =100;
-			xQueueSend(xQueue2,&queue2_data,10);
-			count=0;
-		}
-		vTaskDelay(delay_int);
-	}
-}
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	HAL_UART_Receive_IT(&huart2, (uint8_t*)&serial_input, 1);
-	xQueueSendFromISR(xQueueSerial,&serial_input,NULL);
+
+	HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin,GPIO_PIN_SET);
+
+	xTimerStartFromISR(xTimer_5S,NULL);
+
+	if(serial_input == '\r')
+	{
+		HAL_UART_Transmit_IT(&huart2, (uint8_t*)"\r\n", 2);
+	}
+	else
+	{
+		HAL_UART_Transmit_IT(&huart2, (uint8_t*)&serial_input, 1);
+	}
+}
+
+void vTimerCallback( TimerHandle_t xTimer )
+{
+	HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin,GPIO_PIN_RESET);
+
 }
 /* USER CODE END 4 */
 
