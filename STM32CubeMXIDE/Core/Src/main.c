@@ -49,6 +49,10 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
+TIM_HandleTypeDef htim3;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -59,18 +63,34 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void vTimerCallback( TimerHandle_t xTimer );
 
-TimerHandle_t xTimer_5S;
+uint8_t filling_count = 0;
 
-char serial_input;
+char serial_input[20];
 
+float Global_Average_Raw = 0.0;
+float Global_Average ;
+
+uint16_t ADC_Count = 0;
+uint16_t ADC_Value;
+uint16_t ADC_Data[10];
+
+SemaphoreHandle_t xSemaphore;
+
+QueueHandle_t xQueue1;
+
+TaskHandle_t xTaskAHandle = NULL;
+TaskHandle_t xTaskBHandle = NULL;
+void TaskA(void* pvParameters);
+void TaskB(void* pvParameters);
 /* USER CODE END 0 */
 
 /**
@@ -103,20 +123,19 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_TIM3_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
-  xTimer_5S = xTimerCreate("Timer", 5000,pdTRUE,(void*) 0 ,vTimerCallback);
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_ADC_Start_IT(&hadc1);
 
-  if(xTimer_5S == NULL)
-  {
-	    /* The timer was not created. */
-  }
-  else
-  {
-	  xTimerStart(xTimer_5S,0);
-  }
+  xSemaphore = xSemaphoreCreateMutex();
 
-  HAL_UART_Receive_IT(&huart2, (uint8_t*)&serial_input, 1);
+  xTaskCreate(TaskA,"TaskA",300,NULL, 3,&xTaskAHandle);
+  xTaskCreate(TaskB,"TaskB",300,NULL, 3,&xTaskBHandle);
+
+  xQueue1 = xQueueCreate( 20, sizeof( uint16_t ) );
 
   vTaskStartScheduler();
 
@@ -178,6 +197,103 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 23999;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 399;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
 }
 
 /**
@@ -298,27 +414,101 @@ GETCHAR_PROTOTYPE
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	HAL_UART_Receive_IT(&huart2, (uint8_t*)&serial_input, 1);
-
-	HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin,GPIO_PIN_SET);
-
-	xTimerStartFromISR(xTimer_5S,NULL);
-
-	if(serial_input == '\r')
-	{
-		HAL_UART_Transmit_IT(&huart2, (uint8_t*)"\r\n", 2);
-	}
-	else
-	{
-		HAL_UART_Transmit_IT(&huart2, (uint8_t*)&serial_input, 1);
-	}
 }
 
-void vTimerCallback( TimerHandle_t xTimer )
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-	HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin,GPIO_PIN_RESET);
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
+	if(hadc->Instance == ADC1)
+	{
+		ADC_Value = (uint16_t)HAL_ADC_GetValue(&hadc1);
+
+		if(filling_count<2)
+		{
+			xQueueSendFromISR( xQueue1, &ADC_Value, NULL );
+
+			if((ADC_Count >= 9))
+			{
+				filling_count++;
+				ADC_Count = 0;
+				// Give task notification from ISR (like giving a semaphore)
+				vTaskNotifyGiveFromISR(xTaskAHandle, &xHigherPriorityTaskWoken);
+				// Request context switch if a higher priority task was woken
+				portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+			}
+			else
+			{
+				ADC_Count ++;
+			}
+		}
+	}
 }
+
+void TaskA(void* pvParameters)
+{
+	uint32_t notification_value;
+	while(1)
+	{
+		// Wait for notification (like taking a semaphore)
+		// pdTRUE = clear notification value to 0 (binary semaphore behavior)
+		// portMAX_DELAY = wait indefinitely
+		notification_value = ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+
+		if(notification_value == 1)
+		{
+
+			// Buffer is full! Process the ADC data
+			for(uint8_t i =0; i<10; i++)
+			{
+				xQueueReceive(xQueue1,&ADC_Data[i],( TickType_t ) 10);
+				Global_Average_Raw += ADC_Data[i];
+			}
+
+			//Calculate Average of ADC Data
+			Global_Average_Raw = Global_Average_Raw / 10;
+
+			xSemaphoreTake( xSemaphore, ( TickType_t ) portMAX_DELAY);
+
+			//Calculate Average in Voltage
+			Global_Average = (Global_Average_Raw * 3.8)/4095;
+
+			xSemaphoreGive( xSemaphore );
+
+			//Reset Global Average
+			Global_Average_Raw = 0;
+
+			if(filling_count == 2)
+			{
+				printf("\r\n ADC DATA Buffer Over Flow \r\n ");
+			}
+
+
+			__disable_irq();
+			filling_count--;
+			__enable_irq();
+
+			__asm("nop");
+		}
+	}
+}
+
+void TaskB(void* pvParameters)
+{
+	while(1)
+	{
+		//Read value
+		setvbuf(stdin, NULL, _IONBF, 0);
+		scanf("%20s",serial_input);
+		if(strcmp(serial_input, "avg") == 0)
+		{
+			xSemaphoreTake( xSemaphore, ( TickType_t ) portMAX_DELAY);
+			printf("%f\r\n",Global_Average);
+			xSemaphoreGive( xSemaphore );
+		}
+	}
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -339,6 +529,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+
+  if (htim->Instance == TIM3)
+  {
+	  HAL_ADC_Start_IT(&hadc1);
+  }
 
   /* USER CODE END Callback 1 */
 }
