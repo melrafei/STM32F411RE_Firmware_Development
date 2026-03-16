@@ -31,6 +31,8 @@
 #include "stdlib.h"
 #include "string.h"
 #include <stdio.h>
+
+#include "stm32f4xx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -503,12 +505,23 @@ void TaskB(void* pvParameters)
 		if(strcmp(serial_input, "avg") == 0)
 		{
 			xSemaphoreTake( xSemaphore, ( TickType_t ) portMAX_DELAY);
-			printf("%f\r\n",Global_Average);
+			printf("Average is %f\r\n",Global_Average);
 			xSemaphoreGive( xSemaphore );
 		}
 	}
 }
 
+int _write(int file, char *ptr, int len)
+{
+  (void)file;
+  int DataIdx;
+
+  for (DataIdx = 0; DataIdx < len; DataIdx++)
+  {
+    ITM_SendChar(*ptr++);
+  }
+  return len;
+}
 /* USER CODE END 4 */
 
 /**
