@@ -74,25 +74,31 @@ static void MX_ADC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t filling_count = 0;
+// Settings
+enum { BUF_LEN = 10 };      // Number of elements in sample buffer
+enum { MSG_LEN = 100 };     // Max characters in message body
+enum { MSG_QUEUE_LEN = 5 }; // Number of slots in message queue
+enum { CMD_BUF_LEN = 255};  // Number of characters in command buffer
 
-char serial_input[20];
 
-float Global_Average_Raw = 0.0;
-float Global_Average ;
+// Message struct to wrap strings for queue
+typedef struct Message {
+  char body[MSG_LEN];
+} Message;
 
-uint16_t ADC_Count = 0;
-uint16_t ADC_Value;
-uint16_t ADC_Data[10];
+// Globals
+static TaskHandle_t processing_task = NULL;
+static SemaphoreHandle_t sem_done_reading = NULL;
+static QueueHandle_t msg_queue;
+static volatile uint16_t buf_0[BUF_LEN];      // One buffer in the pair
+static volatile uint16_t buf_1[BUF_LEN];      // The other buffer in the pair
+static volatile uint16_t* write_to = buf_0;   // Double buffer write pointer
+static volatile uint16_t* read_from = buf_1;  // Double buffer read pointer
+static volatile uint8_t buf_overrun = 0;      // Double buffer overrun flag
+static float adc_avg;
 
-SemaphoreHandle_t xSemaphore;
-
-QueueHandle_t xQueue1;
-
-TaskHandle_t xTaskAHandle = NULL;
-TaskHandle_t xTaskBHandle = NULL;
-void TaskA(void* pvParameters);
-void TaskB(void* pvParameters);
+void doCLI(void* pvParameters);
+void calcAverage(void* pvParameters);
 /* USER CODE END 0 */
 
 /**
@@ -130,14 +136,34 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_ADC_Start_IT(&hadc1);
 
-  xSemaphore = xSemaphoreCreateMutex();
+  sem_done_reading = xSemaphoreCreateBinary();
 
-  xTaskCreate(TaskA,"TaskA",300,NULL, 3,&xTaskAHandle);
-  xTaskCreate(TaskB,"TaskB",300,NULL, 3,&xTaskBHandle);
+  // Force reboot if we can't create the semaphore
+  if (sem_done_reading == NULL) {
+    printf("Could not create one or more semaphores");
+    HAL_NVIC_SystemReset();
+  }
 
-  xQueue1 = xQueueCreate( 20, sizeof( uint16_t ) );
+  // We want the done reading semaphore to initialize to 1
+  xSemaphoreGive(sem_done_reading);
+
+  // Create message queue before it is used
+  msg_queue = xQueueCreate(MSG_QUEUE_LEN, sizeof(Message));
+
+  xTaskCreate(doCLI,
+              "Do CLI",
+              1024,
+              NULL,
+              1, // I had to set doCLI as least priority because scanf is 100% allocate CPU
+              NULL);
+
+  xTaskCreate(calcAverage,
+              "Calculate average",
+              1024,
+              NULL,
+             2,
+             &processing_task);
 
   vTaskStartScheduler();
 
@@ -414,114 +440,126 @@ GETCHAR_PROTOTYPE
 	return ch;
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void swap(void)
 {
+  volatile uint16_t* temp_ptr = write_to;
+  write_to = read_from;
+  read_from = temp_ptr;
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+uint16_t analogRead(void)
 {
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-	if(hadc->Instance == ADC1)
-	{
-		ADC_Value = (uint16_t)HAL_ADC_GetValue(&hadc1);
-
-		if(filling_count<2)
-		{
-			xQueueSendFromISR( xQueue1, &ADC_Value, NULL );
-
-			if((ADC_Count >= 9))
-			{
-				filling_count++;
-				ADC_Count = 0;
-				// Give task notification from ISR (like giving a semaphore)
-				vTaskNotifyGiveFromISR(xTaskAHandle, &xHigherPriorityTaskWoken);
-				// Request context switch if a higher priority task was woken
-				portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-			}
-			else
-			{
-				ADC_Count ++;
-			}
-		}
-	}
+	HAL_ADC_Start(&hadc1);
+	HAL_ADC_PollForConversion(&hadc1,100);
+	return HAL_ADC_GetValue(&hadc1);
 }
 
-void TaskA(void* pvParameters)
+// This function executes when timer reaches max (and resets)
+void  onTimer(void) {
+
+  static uint16_t idx = 0;
+  BaseType_t task_woken = pdFALSE;
+
+  // If buffer is not overrun, read ADC to next buffer element. If buffer is
+  // overrun, drop the sample.
+  if ((idx < BUF_LEN) && (buf_overrun == 0)) {
+    write_to[idx] = analogRead();
+    idx++;
+  }
+
+  // Check if the buffer is full
+  if (idx >= BUF_LEN) {
+
+    // If reading is not done, set overrun flag. We don't need to set this
+    // as a critical section, as nothing can interrupt and change either value.
+    if (xSemaphoreTakeFromISR(sem_done_reading, &task_woken) == pdFALSE) {
+      buf_overrun = 1;
+    }
+
+    // Only swap buffers and notify task if overrun flag is cleared
+    if (buf_overrun == 0) {
+
+      // Reset index and swap buffer pointers
+      idx = 0;
+      swap();
+
+      // A task notification works like a binary semaphore but is faster
+      vTaskNotifyGiveFromISR(processing_task, &task_woken);
+    }
+  }
+
+  portYIELD_FROM_ISR(task_woken);
+}
+
+
+void doCLI(void* pvParameters)
 {
-	uint32_t notification_value;
+	Message rcv_msg;
+    char cmd_buf[CMD_BUF_LEN];
+	char serial_input[20];
+
+    // Clear whole buffer
+	memset(cmd_buf, 0, CMD_BUF_LEN);
+
 	while(1)
 	{
-		// Wait for notification (like taking a semaphore)
-		// pdTRUE = clear notification value to 0 (binary semaphore behavior)
-		// portMAX_DELAY = wait indefinitely
-		notification_value = ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-
-		if(notification_value == 1)
+		// Look for any error messages that need to be printed
+		if (xQueueReceive(msg_queue, (void *)&rcv_msg, 0) == pdTRUE)
 		{
-
-			// Buffer is full! Process the ADC data
-			for(uint8_t i =0; i<10; i++)
-			{
-				xQueueReceive(xQueue1,&ADC_Data[i],( TickType_t ) 10);
-				Global_Average_Raw += ADC_Data[i];
-			}
-
-			//Calculate Average of ADC Data
-			Global_Average_Raw = Global_Average_Raw / 10;
-
-			xSemaphoreTake( xSemaphore, ( TickType_t ) portMAX_DELAY);
-
-			//Calculate Average in Voltage
-			Global_Average = (Global_Average_Raw * 3.8)/4095;
-
-			xSemaphoreGive( xSemaphore );
-
-			//Reset Global Average
-			Global_Average_Raw = 0;
-
-			if(filling_count == 2)
-			{
-				printf("\r\n ADC DATA Buffer Over Flow \r\n ");
-			}
-
-
-			__disable_irq();
-			filling_count--;
-			__enable_irq();
-
-			__asm("nop");
+		  printf("%s",rcv_msg.body);
 		}
-	}
-}
-
-void TaskB(void* pvParameters)
-{
-	while(1)
-	{
 		//Read value
 		setvbuf(stdin, NULL, _IONBF, 0);
 		scanf("%20s",serial_input);
 		if(strcmp(serial_input, "avg") == 0)
 		{
-			xSemaphoreTake( xSemaphore, ( TickType_t ) portMAX_DELAY);
-			printf("Average is %f\r\n",Global_Average);
-			xSemaphoreGive( xSemaphore );
+			printf("Average is %f\r\n",adc_avg);
 		}
 	}
 }
 
-int _write(int file, char *ptr, int len)
+void calcAverage(void* pvParameters)
 {
-  (void)file;
-  int DataIdx;
+    Message msg;
+    float avg;
 
-  for (DataIdx = 0; DataIdx < len; DataIdx++)
-  {
-    ITM_SendChar(*ptr++);
-  }
-  return len;
+	while(1)
+	{
+	    // Wait for notification from ISR (similar to binary semaphore)
+	    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+	    // Calculate average (as floating point value)
+	    avg = 0.0;
+	    for (int i = 0; i < BUF_LEN; i++) {
+	      avg += (float)read_from[i];
+	      //vTaskDelay(105 / portTICK_PERIOD_MS); // Uncomment to test overrun flag
+	    }
+	    avg /= BUF_LEN;
+
+	    // Updating the shared float may or may not take multiple isntructions, so
+	    // we protect it with a mutex or critical section.
+	    __disable_irq();
+	    adc_avg = avg;
+	    __enable_irq();
+
+	    // If we took too long to process, buffer writing will have overrun. So,
+	    // we send a message to be printed out to the serial terminal.
+	    if (buf_overrun == 1) {
+	      strcpy(msg.body, "Error: Buffer overrun. Samples have been dropped.");
+	      xQueueSend(msg_queue, (void *)&msg, 10);
+	    }
+
+	    // Clearing the overrun flag and giving the "done reading" semaphore must
+	    // be done together without being interrupted.
+	    __disable_irq();
+	    buf_overrun = 0;
+	    xSemaphoreGive(sem_done_reading);
+	    __enable_irq();
+	}
 }
+
+
+
 /* USER CODE END 4 */
 
 /**
@@ -545,7 +583,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   if (htim->Instance == TIM3)
   {
-	  HAL_ADC_Start_IT(&hadc1);
+	  onTimer();
   }
 
   /* USER CODE END Callback 1 */
