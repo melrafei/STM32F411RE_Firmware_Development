@@ -77,6 +77,7 @@ const osSemaphoreAttr_t sem_done_reading_attributes = {
   .name = "sem_done_reading"
 };
 /* USER CODE BEGIN PV */
+volatile unsigned long ulHighFrequencyTimerTicks;
 
 /* USER CODE END PV */
 
@@ -485,6 +486,18 @@ static void MX_GPIO_Init(void)
 #define GETCHAR_PROTOTYPE int fgetc(FILE *f)
 #endif
 
+void configureTimerForRunTimeStats(void)
+{
+	ulHighFrequencyTimerTicks = 0;
+	HAL_TIM_Base_Start_IT(&htim4);
+}
+
+unsigned long getRunTimeCounterValue(void)
+{
+	return ulHighFrequencyTimerTicks;
+}
+
+
 PUTCHAR_PROTOTYPE
 {
 	HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1,HAL_MAX_DELAY);
@@ -680,6 +693,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
 	  onTimer();
+  }
+
+  if (htim->Instance == TIM4)
+  {
+	 ++ulHighFrequencyTimerTicks;
   }
 
   /* USER CODE END Callback 1 */
