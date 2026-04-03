@@ -18,16 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "queue.h"
-#include "semphr.h"
-#include "event_groups.h"
-
 #include "stdlib.h"
 #include "string.h"
 #include <stdio.h>
@@ -58,6 +52,30 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart2;
 
+/* Definitions for do_CLI */
+osThreadId_t do_CLIHandle;
+const osThreadAttr_t do_CLI_attributes = {
+  .name = "do_CLI",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for calc_Average */
+osThreadId_t calc_AverageHandle;
+const osThreadAttr_t calc_Average_attributes = {
+  .name = "calc_Average",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for msg_queue */
+osMessageQueueId_t msg_queueHandle;
+const osMessageQueueAttr_t msg_queue_attributes = {
+  .name = "msg_queue"
+};
+/* Definitions for sem_done_reading */
+osSemaphoreId_t sem_done_readingHandle;
+const osSemaphoreAttr_t sem_done_reading_attributes = {
+  .name = "sem_done_reading"
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -69,6 +87,9 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM4_Init(void);
+void doCLI(void *argument);
+void calcAverage(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -79,7 +100,6 @@ static void MX_TIM4_Init(void);
 // Settings
 enum { BUF_LEN = 10 };      // Number of elements in sample buffer
 enum { MSG_LEN = 100 };     // Max characters in message body
-enum { MSG_QUEUE_LEN = 5 }; // Number of slots in message queue
 enum { CMD_BUF_LEN = 255};  // Number of characters in command buffer
 
 
@@ -89,9 +109,6 @@ typedef struct Message {
 } Message;
 
 // Globals
-static TaskHandle_t processing_task = NULL;
-static SemaphoreHandle_t sem_done_reading = NULL;
-static QueueHandle_t msg_queue;
 static volatile uint16_t buf_0[BUF_LEN];      // One buffer in the pair
 static volatile uint16_t buf_1[BUF_LEN];      // The other buffer in the pair
 static volatile uint16_t* write_to = buf_0;   // Double buffer write pointer
@@ -99,8 +116,6 @@ static volatile uint16_t* read_from = buf_1;  // Double buffer read pointer
 static volatile uint8_t buf_overrun = 0;      // Double buffer overrun flag
 static float adc_avg;
 
-void doCLI(void* pvParameters);
-void calcAverage(void* pvParameters);
 /* USER CODE END 0 */
 
 /**
@@ -140,38 +155,54 @@ int main(void)
 
   HAL_TIM_Base_Start_IT(&htim3);
 
-  sem_done_reading = xSemaphoreCreateBinary();
-
-  // Force reboot if we can't create the semaphore
-  if (sem_done_reading == NULL) {
-    printf("Could not create one or more semaphores");
-    HAL_NVIC_SystemReset();
-  }
-
-  // We want the done reading semaphore to initialize to 1
-  xSemaphoreGive(sem_done_reading);
-
-  // Create message queue before it is used
-  msg_queue = xQueueCreate(MSG_QUEUE_LEN, sizeof(Message));
-
-  xTaskCreate(doCLI,
-              "Do CLI",
-              1024,
-              NULL,
-              1, // I had to set doCLI as least priority because scanf is 100% allocate CPU
-              NULL);
-
-  xTaskCreate(calcAverage,
-              "Calculate average",
-              1024,
-              NULL,
-             2,
-             &processing_task);
-
-  vTaskStartScheduler();
-
-
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of sem_done_reading */
+  sem_done_readingHandle = osSemaphoreNew(1, 1, &sem_done_reading_attributes);
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of msg_queue */
+  msg_queueHandle = osMessageQueueNew (5, sizeof(Message), &msg_queue_attributes);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of do_CLI */
+  do_CLIHandle = osThreadNew(doCLI, NULL, &do_CLI_attributes);
+
+  /* creation of calc_Average */
+  calc_AverageHandle = osThreadNew(calcAverage, NULL, &calc_Average_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -348,7 +379,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 95;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 65535;
+  htim4.Init.Period = 99;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -506,7 +537,6 @@ uint16_t analogRead(void)
 void  onTimer(void) {
 
   static uint16_t idx = 0;
-  BaseType_t task_woken = pdFALSE;
 
   // If buffer is not overrun, read ADC to next buffer element. If buffer is
   // overrun, drop the sample.
@@ -520,7 +550,7 @@ void  onTimer(void) {
 
     // If reading is not done, set overrun flag. We don't need to set this
     // as a critical section, as nothing can interrupt and change either value.
-    if (xSemaphoreTakeFromISR(sem_done_reading, &task_woken) == pdFALSE) {
+    if (osSemaphoreAcquire(sem_done_readingHandle, 0) != osOK) {
       buf_overrun = 1;
     }
 
@@ -532,16 +562,25 @@ void  onTimer(void) {
       swap();
 
       // A task notification works like a binary semaphore but is faster
-      vTaskNotifyGiveFromISR(processing_task, &task_woken);
+      osThreadFlagsSet(calc_AverageHandle, //TaskHandle for calcAverage Task
+    		           0x01);         // This is flag mask (sets bit 0)
     }
   }
-
-  portYIELD_FROM_ISR(task_woken);
 }
 
+/* USER CODE END 4 */
 
-void doCLI(void* pvParameters)
+/* USER CODE BEGIN Header_doCLI */
+/**
+  * @brief  Function implementing the do_CLI thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_doCLI */
+void doCLI(void *argument)
 {
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
 	Message rcv_msg;
     char cmd_buf[CMD_BUF_LEN];
 	char serial_input[20];
@@ -552,7 +591,7 @@ void doCLI(void* pvParameters)
 	while(1)
 	{
 		// Look for any error messages that need to be printed
-		if (xQueueReceive(msg_queue, (void *)&rcv_msg, 0) == pdTRUE)
+		if (osMessageQueueGet(msg_queueHandle, (void *)&rcv_msg, NULL, 0) == osOK)
 		{
 		  printf("%s",rcv_msg.body);
 		}
@@ -564,17 +603,29 @@ void doCLI(void* pvParameters)
 			printf("Average is %f\r\n",adc_avg);
 		}
 	}
+  /* USER CODE END 5 */
 }
 
-void calcAverage(void* pvParameters)
+/* USER CODE BEGIN Header_calcAverage */
+/**
+* @brief Function implementing the calc_Average thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_calcAverage */
+void calcAverage(void *argument)
 {
+  /* USER CODE BEGIN calcAverage */
+  /* Infinite loop */
     Message msg;
     float avg;
 
 	while(1)
 	{
 	    // Wait for notification from ISR (similar to binary semaphore)
-	    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+		osThreadFlagsWait(0x01 ,           // Wait for flag bit 0
+				          osFlagsWaitAny,  // waits until any bit (in our case bit0) is set
+						  osWaitForever);  //No Timeout
 
 	    // Calculate average (as floating point value)
 	    avg = 0.0;
@@ -594,21 +645,18 @@ void calcAverage(void* pvParameters)
 	    // we send a message to be printed out to the serial terminal.
 	    if (buf_overrun == 1) {
 	      strcpy(msg.body, "Error: Buffer overrun. Samples have been dropped.");
-	      xQueueSend(msg_queue, (void *)&msg, 10);
+	      osMessageQueuePut(msg_queueHandle, (void *)&msg, 0, 10);
 	    }
 
 	    // Clearing the overrun flag and giving the "done reading" semaphore must
 	    // be done together without being interrupted.
 	    __disable_irq();
 	    buf_overrun = 0;
-	    xSemaphoreGive(sem_done_reading);
+	    osSemaphoreRelease(sem_done_readingHandle);
 	    __enable_irq();
 	}
+  /* USER CODE END calcAverage */
 }
-
-
-
-/* USER CODE END 4 */
 
 /**
   * @brief  Period elapsed callback in non blocking mode
