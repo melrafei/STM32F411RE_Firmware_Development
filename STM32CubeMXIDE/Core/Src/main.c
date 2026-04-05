@@ -127,7 +127,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -143,7 +143,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  xTraceEnable(TRC_START);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -155,7 +155,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start_IT(&htim3);
-
+  
   /* USER CODE END 2 */
 
   /* Init scheduler */
